@@ -6,6 +6,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"sort"
 
 	"gonum.org/v1/gonum/mat"
@@ -215,5 +216,14 @@ func main() {
 	err = p.Save(8*vg.Inch, 8*vg.Inch, "adjacency.png")
 	if err != nil {
 		panic(err)
+	}
+
+	output, err := os.Create("adjacency.dat")
+	if err != nil {
+		panic(err)
+	}
+	defer output.Close()
+	for _, point := range points {
+		fmt.Fprintf(output, "%f %f\n", point.X, point.Y)
 	}
 }
