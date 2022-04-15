@@ -4,7 +4,12 @@
 
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+
+	"github.com/pointlander/pagerank"
+)
 
 type Value uint64
 
@@ -137,4 +142,33 @@ func main() {
 		nodes = apply(nodes)
 	}
 	fmt.Println(id, len(graph), count)
+
+	g := pagerank.NewGraph64()
+	for a, links := range graph {
+		for b, weight := range links {
+			g.Link(uint64(a), uint64(b), float64(weight))
+			g.Link(uint64(b), uint64(a), float64(weight))
+		}
+	}
+	inverse := make(map[uint]*Node)
+	for _, node := range ids {
+		inverse[node.ID] = node.Node
+	}
+	type Rank struct {
+		Node *Node
+		Rank float64
+	}
+	ranks := make([]Rank, 0, 8)
+	g.Rank(0.85, 0.000001, func(node uint64, rank float64) {
+		ranks = append(ranks, Rank{
+			Node: inverse[uint(node)],
+			Rank: rank,
+		})
+	})
+	sort.Slice(ranks, func(i, j int) bool {
+		return ranks[i].Rank > ranks[j].Rank
+	})
+	for i := 0; i < 10; i++ {
+		fmt.Println(ranks[i].Rank, ranks[i].Node.String())
+	}
 }
