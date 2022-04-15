@@ -20,8 +20,9 @@ const (
 // Node is the node in a binary tree
 type Node struct {
 	Value
-	L, R    *Node
-	Matched bool
+	Parent, ID uint
+	L, R       *Node
+	Matched    bool
 }
 
 // String is the string representation of a tree
@@ -87,13 +88,13 @@ func main() {
 		Value: B,
 	}
 
-	nodes := make([]*Node, 0, 8)
-	nodes = append(nodes, root)
 	apply := func(nodes []*Node) []*Node {
 		children := make([]*Node, 0, 8)
 		for _, node := range nodes {
+			id := node.ID
 			found, child := node.Apply()
 			for !found {
+				child.Parent = id
 				children = append(children, child)
 				found, child = node.Apply()
 			}
@@ -101,13 +102,39 @@ func main() {
 		return children
 	}
 
-	next := apply(nodes)
-	for i := 0; i < 8; i++ {
-		tmp := apply(next)
-		nodes = append(nodes, next...)
-		next = tmp
+	type ID struct {
+		ID   uint
+		Node *Node
 	}
-	for _, node := range nodes {
-		fmt.Println(node.String())
+
+	var id uint
+	graph, nodes, count, ids := make(map[uint]map[uint]uint), []*Node{root}, 0, make(map[string]ID)
+	for i := 0; i < 9; i++ {
+		for _, node := range nodes {
+			s := node.String()
+			i, ok := ids[s]
+			if !ok {
+				i = ID{
+					ID:   id,
+					Node: node,
+				}
+				ids[s] = i
+				id++
+			}
+			node.ID = i.ID
+			a, b := i.ID, node.Parent
+			if a > b {
+				a, b = b, a
+			}
+			parent, ok := graph[a]
+			if !ok {
+				parent = make(map[uint]uint)
+			}
+			parent[b]++
+			graph[a] = parent
+			count++
+		}
+		nodes = apply(nodes)
 	}
+	fmt.Println(id, len(graph), count)
 }
