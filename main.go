@@ -24,6 +24,60 @@ type Node struct {
 	Matched bool
 }
 
+// String is the string representation of a tree
+func (n *Node) String() string {
+	if n.Value == A {
+		return "a"
+	}
+
+	if n.Value == B {
+		return "b"
+	}
+
+	return fmt.Sprintf("(%s*%s)", n.L.String(), n.R.String())
+}
+
+// Copy copies the tree
+func (n *Node) Copy() *Node {
+	if n.Value > 0 {
+		return n
+	}
+
+	new := &Node{}
+	left := n.L.Copy()
+	right := n.R.Copy()
+	new.L = left
+	new.R = right
+	return new
+}
+
+// Apply applies the rule to node
+func (n *Node) Apply() (bool, *Node) {
+	if n.Value > 0 {
+		return true, n
+	}
+
+	if n.Matched {
+		new := &Node{}
+		l, left := n.L.Apply()
+		r, right := n.R.Apply()
+		new.L = left
+		new.R = right
+		return l && r, new
+	}
+
+	new := &Node{}
+	left := n.L.Copy()
+	right := n.R.Copy()
+	new.L = &Node{
+		L: right,
+		R: left,
+	}
+	new.R = right
+	n.Matched = true
+	return false, new
+}
+
 func main() {
 	root := &Node{}
 	root.L = &Node{
@@ -33,65 +87,15 @@ func main() {
 		Value: B,
 	}
 
-	var iterate func(n *Node, matched bool) (bool, *Node)
-	iterate = func(n *Node, matched bool) (bool, *Node) {
-		if n.Value > 0 {
-			return true, n
-		}
-
-		if !matched {
-			if n.Matched {
-				new := &Node{}
-				l, left := iterate(n.L, false)
-				r, right := iterate(n.R, false)
-				new.L = left
-				new.R = right
-				return l && r, new
-			} else {
-				new := &Node{}
-				_, left := iterate(n.L, true)
-				_, right := iterate(n.R, true)
-
-				new.L = &Node{
-					L: right,
-					R: left,
-				}
-				new.R = right
-				n.Matched = true
-				return false, new
-			}
-		}
-
-		new := &Node{}
-		l, left := iterate(n.L, true)
-		r, right := iterate(n.R, true)
-		new.L = left
-		new.R = right
-		return l && r && n.Matched, new
-	}
-
-	var toString func(n *Node) string
-	toString = func(n *Node) string {
-		if n.Value == A {
-			return "a"
-		}
-
-		if n.Value == B {
-			return "b"
-		}
-
-		return fmt.Sprintf("(%s*%s)", toString(n.L), toString(n.R))
-	}
-
 	nodes := make([]*Node, 0, 8)
 	nodes = append(nodes, root)
 	apply := func(nodes []*Node) []*Node {
 		children := make([]*Node, 0, 8)
 		for _, node := range nodes {
-			found, child := iterate(node, false)
+			found, child := node.Apply()
 			for !found {
 				children = append(children, child)
-				found, child = iterate(node, false)
+				found, child = node.Apply()
 			}
 		}
 		return children
@@ -104,6 +108,6 @@ func main() {
 		next = tmp
 	}
 	for _, node := range nodes {
-		fmt.Println(toString(node))
+		fmt.Println(node.String())
 	}
 }
