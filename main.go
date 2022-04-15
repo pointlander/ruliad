@@ -8,6 +8,13 @@ import (
 	"fmt"
 	"sort"
 
+	"gonum.org/v1/gonum/mat"
+	"gonum.org/v1/gonum/stat"
+	"gonum.org/v1/plot"
+	"gonum.org/v1/plot/plotter"
+	"gonum.org/v1/plot/vg"
+	"gonum.org/v1/plot/vg/draw"
+
 	"github.com/pointlander/pagerank"
 )
 
@@ -144,10 +151,13 @@ func main() {
 	fmt.Println(id, len(graph), count)
 
 	g := pagerank.NewGraph64()
+	adjacency := mat.NewDense(int(id), int(id), nil)
 	for a, links := range graph {
 		for b, weight := range links {
 			g.Link(uint64(a), uint64(b), float64(weight))
 			g.Link(uint64(b), uint64(a), float64(weight))
+			adjacency.Set(int(a), int(b), float64(weight))
+			adjacency.Set(int(b), int(a), float64(weight))
 		}
 	}
 	inverse := make(map[uint]*Node)
@@ -170,5 +180,40 @@ func main() {
 	})
 	for i := 0; i < 10; i++ {
 		fmt.Println(ranks[i].Rank, ranks[i].Node.String())
+	}
+
+	var pc stat.PC
+	ok := pc.PrincipalComponents(adjacency, nil)
+	if !ok {
+		panic("PrincipalComponents failed")
+	}
+	k := 2
+	var proj mat.Dense
+	var vec mat.Dense
+	pc.VectorsTo(&vec)
+	proj.Mul(adjacency, vec.Slice(0, int(id), 0, k))
+
+	points := make(plotter.XYs, 0, 8)
+	for i := 0; i < int(id); i++ {
+		points = append(points, plotter.XY{X: proj.At(i, 0), Y: proj.At(i, 1)})
+	}
+
+	p := plot.New()
+
+	p.Title.Text = "x vs y"
+	p.X.Label.Text = "x"
+	p.Y.Label.Text = "y"
+
+	scatter, err := plotter.NewScatter(points)
+	if err != nil {
+		panic(err)
+	}
+	scatter.GlyphStyle.Radius = vg.Length(1)
+	scatter.GlyphStyle.Shape = draw.CircleGlyph{}
+	p.Add(scatter)
+
+	err = p.Save(8*vg.Inch, 8*vg.Inch, "adjacency.png")
+	if err != nil {
+		panic(err)
 	}
 }
