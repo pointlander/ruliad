@@ -5,7 +5,10 @@
 package main
 
 import (
+	"flag"
 	"fmt"
+	"math/cmplx"
+	"math/rand"
 	"os"
 	"sort"
 
@@ -28,6 +31,11 @@ const (
 	A
 	// B is the b value
 	B
+)
+
+var (
+	// FlagTruther truther mode
+	FlagTruther = flag.Bool("truther", false, "truther mode")
 )
 
 // Node is the node in a binary tree
@@ -92,7 +100,51 @@ func (n *Node) Apply() (bool, *Node) {
 	return false, new
 }
 
+// Reduction reduces the matrix
+func Reduction(name string, ranks *mat.Dense) {
+	var pc stat.PC
+	ok := pc.PrincipalComponents(ranks, nil)
+	if !ok {
+		panic("PrincipalComponents failed")
+	}
+	k := 2
+	var proj mat.Dense
+	var vec mat.Dense
+	pc.VectorsTo(&vec)
+	_, c := ranks.Caps()
+	proj.Mul(ranks, vec.Slice(0, c, 0, k))
+
+	fmt.Printf("\n")
+	points := make(plotter.XYs, 0, 8)
+	for i := 0; i < c; i++ {
+		fmt.Println(proj.At(i, 0), proj.At(i, 1))
+		points = append(points, plotter.XY{X: proj.At(i, 0), Y: proj.At(i, 1)})
+	}
+
+	p := plot.New()
+
+	p.Title.Text = "x vs y"
+	p.X.Label.Text = "x"
+	p.Y.Label.Text = "y"
+
+	scatter, err := plotter.NewScatter(points)
+	if err != nil {
+		panic(err)
+	}
+	scatter.GlyphStyle.Radius = vg.Length(3)
+	scatter.GlyphStyle.Shape = draw.CircleGlyph{}
+	p.Add(scatter)
+
+	err = p.Save(8*vg.Inch, 8*vg.Inch, fmt.Sprintf("%s.png", name))
+	if err != nil {
+		panic(err)
+	}
+}
+
 func main() {
+	flag.Parse()
+	rand.Seed(1)
+
 	root := &Node{}
 	root.L = &Node{
 		Value: A,
@@ -183,47 +235,72 @@ func main() {
 		fmt.Println(ranks[i].Rank, ranks[i].Node.String())
 	}
 
-	var pc stat.PC
-	ok := pc.PrincipalComponents(adjacency, nil)
-	if !ok {
-		panic("PrincipalComponents failed")
-	}
-	k := 2
-	var proj mat.Dense
-	var vec mat.Dense
-	pc.VectorsTo(&vec)
-	proj.Mul(adjacency, vec.Slice(0, int(id), 0, k))
+	if *FlagTruther {
+		var eig mat.Eigen
+		ok := eig.Factorize(adjacency, mat.EigenRight)
+		if !ok {
+			panic("Eigendecomposition failed")
+		}
 
-	points := make(plotter.XYs, 0, 8)
-	for i := 0; i < int(id); i++ {
-		points = append(points, plotter.XY{X: proj.At(i, 0), Y: proj.At(i, 1)})
-	}
+		values := eig.Values(nil)
+		for i, value := range values {
+			fmt.Println(i, value, cmplx.Abs(value), cmplx.Phase(value))
+		}
 
-	p := plot.New()
+		vectors := mat.CDense{}
+		eig.VectorsTo(&vectors)
 
-	p.Title.Text = "x vs y"
-	p.X.Label.Text = "x"
-	p.Y.Label.Text = "y"
+		ranks := mat.NewDense(int(id), int(id), nil)
+		for i := 0; i < int(id); i++ {
+			for j := 0; j < int(id); j++ {
+				ranks.Set(i, j, real(vectors.At(i, j)))
+			}
+		}
 
-	scatter, err := plotter.NewScatter(points)
-	if err != nil {
-		panic(err)
-	}
-	scatter.GlyphStyle.Radius = vg.Length(1)
-	scatter.GlyphStyle.Shape = draw.CircleGlyph{}
-	p.Add(scatter)
+		Reduction("truther", ranks)
+	} else {
+		var pc stat.PC
+		ok := pc.PrincipalComponents(adjacency, nil)
+		if !ok {
+			panic("PrincipalComponents failed")
+		}
+		k := 2
+		var proj mat.Dense
+		var vec mat.Dense
+		pc.VectorsTo(&vec)
+		proj.Mul(adjacency, vec.Slice(0, int(id), 0, k))
 
-	err = p.Save(8*vg.Inch, 8*vg.Inch, "adjacency.png")
-	if err != nil {
-		panic(err)
-	}
+		points := make(plotter.XYs, 0, 8)
+		for i := 0; i < int(id); i++ {
+			points = append(points, plotter.XY{X: proj.At(i, 0), Y: proj.At(i, 1)})
+		}
 
-	output, err := os.Create("adjacency.dat")
-	if err != nil {
-		panic(err)
-	}
-	defer output.Close()
-	for _, point := range points {
-		fmt.Fprintf(output, "%f %f\n", point.X, point.Y)
+		p := plot.New()
+
+		p.Title.Text = "x vs y"
+		p.X.Label.Text = "x"
+		p.Y.Label.Text = "y"
+
+		scatter, err := plotter.NewScatter(points)
+		if err != nil {
+			panic(err)
+		}
+		scatter.GlyphStyle.Radius = vg.Length(1)
+		scatter.GlyphStyle.Shape = draw.CircleGlyph{}
+		p.Add(scatter)
+
+		err = p.Save(8*vg.Inch, 8*vg.Inch, "adjacency.png")
+		if err != nil {
+			panic(err)
+		}
+
+		output, err := os.Create("adjacency.dat")
+		if err != nil {
+			panic(err)
+		}
+		defer output.Close()
+		for _, point := range points {
+			fmt.Fprintf(output, "%f %f\n", point.X, point.Y)
+		}
 	}
 }
