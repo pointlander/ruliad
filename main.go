@@ -253,7 +253,7 @@ func main() {
 		ranks := mat.NewDense(int(id), int(id), nil)
 		for i := 0; i < int(id); i++ {
 			for j := 0; j < int(id); j++ {
-				ranks.Set(i, j, real(vectors.At(i, j)))
+				ranks.Set(i, j, real(values[j]*vectors.At(i, j)))
 			}
 		}
 
